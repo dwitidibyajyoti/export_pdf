@@ -12,6 +12,7 @@
   "license": "ISC",
   "dependencies": {
     "cheerio": "^1.0.0-rc.12",
+    "chokidar": "^3.5.3",
     "express": "^4.18.2",
     "openai": "^3.3.0",
     "openapi": "^1.0.1",

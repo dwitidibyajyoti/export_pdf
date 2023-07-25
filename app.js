@@ -2,13 +2,39 @@ import express from 'express';
 const app = express ();
 const PORT = 3000;
 // const fs = require ('fs');
-import fs from 'fs';
-import PDFParser from 'pdf2json';
 import cheerio from 'cheerio';
 import path from 'path';
 import crypto from 'crypto';
+import chokidar from 'chokidar';
+import https from 'https';
+import fs from 'fs';
+import axios from 'axios';
+
+
+
 
 app.use (express.json ());
+
+const API_KEY = "dwitidibyajyoti@gmail.com_1669416a2df8a321947ac32dd674d372ec22f3c486597dd90ed6b3e81967e8d780987b4e";
+
+// Source PDF file
+const DestinationFile = "htmlFIle/inputFile/June2023.html";
+
+let data = JSON.stringify({
+    "url": "https://drive.google.com/file/d/1BJq140G1jKNiCpDSWUPOcfnAphH1V-Qd/view?usp=sharing",
+    "async": true
+});
+
+let config = {
+    method: 'post',
+    url: 'https://api.pdf.co/v1/pdf/convert/to/html',
+    headers: {
+        'x-api-key': API_KEY,
+        'Content-Type': 'application/json'
+    },
+    data: data
+};
+
 
 async function addContentEditableToSpans (htmlFile, outputFolder) {
   const htmlContent = await fs.readFileSync (htmlFile, 'utf8');
@@ -40,7 +66,7 @@ async function addContentEditableToSpans (htmlFile, outputFolder) {
       const imageId = `image_${uuid}`;
 
       imageElement.attr ('id', imageId);
-      imageElement.attr('style', 'cursor: pointer;');
+      imageElement.attr ('style', 'cursor: pointer;');
       imageElement.attr ('onclick', `chooseImage('${inputId}')`);
       const newElement = `<input type="file" id=${inputId} name="img" accept="image/*" onchange="handleImageSelect(event,${imageId})" style="display: none;">`;
 
@@ -142,8 +168,103 @@ app.get ('/', async (req, res) => {
   return res.send ('completed');
 });
 
+
+// chokidar.watch('./htmlFIle/inputFile').on('add', (path, event) => {
+//   console.log(path);
+// });
+
+
+
+
+
+app.get ('/createFile', async (req, res) => {
+  axios
+    .request (config)
+    .then (res => {
+      let data = res.data;
+      console.log (`Job #${data.jobId} has been created!`);
+      checkIfJobIsCompleted (data.jobId, data.url);
+    })
+    .catch (err => {
+      return console.error ('Error: ', err);
+    });
+  return res.send ('completed');
+});
+
+
+
+function checkIfJobIsCompleted (jobId, resultFileUrl) {
+  let queryPath = `/v1/job/check`;
+
+  // JSON payload for api request
+  let jsonPayload = JSON.stringify ({
+    jobid: jobId,
+  });
+
+  let reqOptions = {
+    host: 'api.pdf.co',
+    path: queryPath,
+    method: 'POST',
+    headers: {
+      'x-api-key': API_KEY,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength (jsonPayload, 'utf8'),
+    },
+  };
+
+  // Send request
+  var postRequest = https.request (reqOptions, response => {
+    response.on ('data', d => {
+      response.setEncoding ('utf8');
+
+      // Parse JSON response
+      let data = JSON.parse (d);
+
+      console.log (data);
+      console.log (
+        `Checking Job #${jobId}, Status: ${data.status}, Time: ${new Date ().toLocaleString ()}`
+      );
+
+      if (data.status == 'working') {
+        // Check again after 3 seconds
+        setTimeout (function () {
+          checkIfJobIsCompleted (jobId, resultFileUrl);
+        }, 3000);
+      } else if (data.status == 'success') {
+        // Download XML file
+        var file = fs.createWriteStream (DestinationFile);
+        https.get (resultFileUrl, response2 => {
+          response2.pipe (file).on ('close', async () => {
+            const inputHtmlFile = DestinationFile;
+            const outputFolder = './htmlFIle/outPut';
+            const prompt = `completed`;
+            await addContentEditableToSpans (inputHtmlFile, outputFolder);
+            console.log (
+              `Generated XML file saved as "${DestinationFile}" file.`
+            );
+          });
+        });
+      } else {
+        console.log (`Operation ended with status: "${data.status}".`);
+      }
+    });
+  });
+
+  // Write request data
+  postRequest.write (jsonPayload);
+  postRequest.end ();
+}
+
+
 // Replace 'path/to/your/output/folder' with the desired folder path
 
 app.listen (PORT, () => {
   console.log (`Server is running on http://localhost:${PORT}`);
 });
+
+
+
+
+
+
+
