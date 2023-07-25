@@ -10,31 +10,28 @@ import https from 'https';
 import fs from 'fs';
 import axios from 'axios';
 
-
-
-
 app.use (express.json ());
 
-const API_KEY = "dwitidibyajyoti@gmail.com_1669416a2df8a321947ac32dd674d372ec22f3c486597dd90ed6b3e81967e8d780987b4e";
+const API_KEY =
+  'fojafore@finews.biz_5655c8d1152ee0f37315232ff96fa365bc9fb5417d69ecaee123241a02f135433dcb909f';
 
 // Source PDF file
-const DestinationFile = "htmlFIle/inputFile/June2023.html";
+const DestinationFile = 'htmlFIle/inputFile/June2023.html';
 
-let data = JSON.stringify({
-    "url": "https://drive.google.com/file/d/1BJq140G1jKNiCpDSWUPOcfnAphH1V-Qd/view?usp=sharing",
-    "async": true
+let data = JSON.stringify ({
+  url: 'https://drive.google.com/file/d/1BJq140G1jKNiCpDSWUPOcfnAphH1V-Qd/view?usp=sharing',
+  async: true,
 });
 
 let config = {
-    method: 'post',
-    url: 'https://api.pdf.co/v1/pdf/convert/to/html',
-    headers: {
-        'x-api-key': API_KEY,
-        'Content-Type': 'application/json'
-    },
-    data: data
+  method: 'post',
+  url: 'https://api.pdf.co/v1/pdf/convert/to/html',
+  headers: {
+    'x-api-key': API_KEY,
+    'Content-Type': 'application/json',
+  },
+  data: data,
 };
-
 
 async function addContentEditableToSpans (htmlFile, outputFolder) {
   const htmlContent = await fs.readFileSync (htmlFile, 'utf8');
@@ -42,7 +39,7 @@ async function addContentEditableToSpans (htmlFile, outputFolder) {
   let uuid = crypto.randomUUID ();
 
   // Find all <span> elements and add contenteditable="true" attribute
-  $ ('span').attr ('contenteditable', 'true');
+  $ ('span').attr ('contenteditable', 'false');
 
   const allSpans = $ ('span');
 
@@ -79,39 +76,76 @@ async function addContentEditableToSpans (htmlFile, outputFolder) {
   const scriptContent = `
     <script>
     function saveChanges() {
-      const allSpans = document.querySelectorAll('span');
-      const allImage = document.querySelectorAll('img');
-      const spanData = [];
-  
-      allSpans.forEach((span) => {
-        const spanId = span.id;
-        const spanContent = span.textContent;
-        spanData.push({ id: spanId, content: spanContent });
-      });
-  
-      allImage.forEach((span) => {
-        const imageId = span.id;
-        const imageContent = span.src;
-        spanData.push({ id: imageId, content: imageContent });
-      });
-      const jsonContent = JSON.stringify(spanData, null, 2);
-  
-      // Create a Blob from the JSON content
-      const blob = new Blob([jsonContent], { type: 'application/json' });
-  
-      // Create a download link for the JSON file
-      const downloadLink = document.createElement('a');
-      downloadLink.href = URL.createObjectURL(blob);
-      downloadLink.download = 'span_data.json';
-      downloadLink.click();
-    }
-      function chooseImage(id) {
-        console.log(id);
-        const inputElement = document.getElementById(id);
-        console.log(inputElement)
-        // Trigger the file selection dialog
-        inputElement.click();
+
+      
+
+      if(getItem("is_editable")=="1"){
+        const allSpans = document.querySelectorAll('span');
+        const allImage = document.querySelectorAll('img');
+        const spanData = [];
+    
+        allSpans.forEach((span) => {
+          const spanId = span.id;
+          const spanContent = span.textContent;
+          spanData.push({ id: spanId, content: spanContent });
+        });
+    
+        allImage.forEach((span) => {
+          const imageId = span.id;
+          const imageContent = span.src;
+          spanData.push({ id: imageId, content: imageContent });
+        });
+        const jsonContent = JSON.stringify(spanData, null, 2);
+    
+        // Create a Blob from the JSON content
+        const blob = new Blob([jsonContent], { type: 'application/json' });
+    
+        // Create a download link for the JSON file
+        const downloadLink = document.createElement('a');
+        downloadLink.href = URL.createObjectURL(blob);
+        downloadLink.download = 'span_data.json';
+        downloadLink.click();
+      }else{
+        setItem("is_editable", "1");
+        const myButton = document.getElementById('action_button');
+        myButton.textContent = 'Save';
         
+        // Get all span elements and set their contenteditable attribute to true
+        const spanElements = document.querySelectorAll('span');
+        spanElements.forEach(span => {
+          span.contentEditable = true;
+        });
+      }
+     
+    }
+
+    function getItem(key){
+      if (!hasLocalStorage || !key) return;
+      return localStorage.getItem(key);
+    }
+  
+      function setItem(key, val){
+          if (!hasLocalStorage || !key) return;
+          localStorage.setItem(key, val);
+      }
+      
+      function hasLocalStorage () {
+          return typeof window.localStorage !== 'undefined';
+      }
+      
+      // //to store an item
+      // setItem("is_editable", "1");
+      
+      // //to retrieve an (the above, in this case) item
+      // var fetchItem = getItem("itemKey");
+      function chooseImage(id) {
+
+        if(getItem("is_editable")=="1"){
+          const inputElement = document.getElementById(id);
+          console.log(inputElement)
+          // Trigger the file selection dialog
+          inputElement.click();
+        }
       }
 
       function handleImageSelect(event, imageId) {
@@ -130,7 +164,7 @@ async function addContentEditableToSpans (htmlFile, outputFolder) {
   $ ('head').append (scriptContent);
 
   const buttonElement = $ (
-    '<button style="position: fixed;top: 4px;right: 4px;" onclick="saveChanges()">Save</button>'
+    '<button style="position: fixed;top: 4px;right: 4px;" onclick="saveChanges()" id="action_button">Edit</button>'
   );
 
   $ ('body').append (buttonElement);
@@ -168,14 +202,9 @@ app.get ('/', async (req, res) => {
   return res.send ('completed');
 });
 
-
 // chokidar.watch('./htmlFIle/inputFile').on('add', (path, event) => {
 //   console.log(path);
 // });
-
-
-
-
 
 app.get ('/createFile', async (req, res) => {
   axios
@@ -190,8 +219,6 @@ app.get ('/createFile', async (req, res) => {
     });
   return res.send ('completed');
 });
-
-
 
 function checkIfJobIsCompleted (jobId, resultFileUrl) {
   let queryPath = `/v1/job/check`;
@@ -255,16 +282,8 @@ function checkIfJobIsCompleted (jobId, resultFileUrl) {
   postRequest.end ();
 }
 
-
 // Replace 'path/to/your/output/folder' with the desired folder path
 
 app.listen (PORT, () => {
   console.log (`Server is running on http://localhost:${PORT}`);
 });
-
-
-
-
-
-
-
