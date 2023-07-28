@@ -5,39 +5,39 @@ const PORT = 3000;
 import cheerio from 'cheerio';
 import path from 'path';
 import crypto from 'crypto';
-import chokidar from 'chokidar';
 import https from 'https';
 import fs from 'fs';
+import cors from 'cors';
+import {WebSocketServer} from 'ws';
 import axios from 'axios';
 
 app.use (express.json ());
 
 const API_KEY =
-  'fojafore@finews.biz_5655c8d1152ee0f37315232ff96fa365bc9fb5417d69ecaee123241a02f135433dcb909f';
+  'vizyda@hexi.pics_ccf076a02228b4b6e6055abd0456c0b1502c2b4b1822c1b2ed118fd1eca3739070e42099';
 
 // Source PDF file
 const DestinationFile = 'htmlFIle/inputFile/June2023.html';
 
-let data = JSON.stringify ({
-  url: 'https://drive.google.com/file/d/1BJq140G1jKNiCpDSWUPOcfnAphH1V-Qd/view?usp=sharing',
-  async: true,
+app.use (cors ({origin: 'http://127.0.0.1:5500'}));
+
+const wss = new WebSocketServer ({port: 3001});
+
+wss.onerror = function (error) {
+  console.log (error);
+};
+const client = [];
+let outPutFileName = '';
+app.use (express.static ('public'));
+wss.on ('headers', (headers, request) => {
+  headers.push ('Access-Control-Allow-Origin: http://localhost:3000/');
 });
 
-let config = {
-  method: 'post',
-  url: 'https://api.pdf.co/v1/pdf/convert/to/html',
-  headers: {
-    'x-api-key': API_KEY,
-    'Content-Type': 'application/json',
-  },
-  data: data,
-};
 
 async function addContentEditableToSpans (htmlFile, outputFolder) {
   const htmlContent = await fs.readFileSync (htmlFile, 'utf8');
   const $ = cheerio.load (htmlContent);
   let uuid = crypto.randomUUID ();
-
   // Find all <span> elements and add contenteditable="true" attribute
   $ ('span').attr ('contenteditable', 'false');
 
@@ -76,8 +76,13 @@ async function addContentEditableToSpans (htmlFile, outputFolder) {
   const scriptContent = `
     <script>
     function saveChanges() {
+      const myButton = document.getElementById ('action_button');
 
-      
+      if (myButton.textContent == 'Edit' && getItem("is_editable")=="1") {
+        setItem ('is_editable', '0');
+        console.log(getItem("is_editable"));
+      }
+
 
       if(getItem("is_editable")=="1"){
         const allSpans = document.querySelectorAll('span');
@@ -140,6 +145,12 @@ async function addContentEditableToSpans (htmlFile, outputFolder) {
       // var fetchItem = getItem("itemKey");
       function chooseImage(id) {
 
+        const myButton = document.getElementById ('action_button');
+
+      if (myButton.textContent == 'Edit' && getItem("is_editable")=="1") {
+        setItem ('is_editable', '0');
+        console.log(getItem("is_editable"));
+      }
         if(getItem("is_editable")=="1"){
           const inputElement = document.getElementById(id);
           console.log(inputElement)
@@ -178,35 +189,51 @@ async function addContentEditableToSpans (htmlFile, outputFolder) {
   }
 
   // Determine the new HTML file path
-  const outputHtmlFile = path.join (
-    outputFolder,
+  const outPutFile =
     'modified-' +
-      Math.floor (new Date ().getTime () / 1000) +
-      '-' +
-      path.basename (htmlFile)
-  );
+    Math.floor (new Date ().getTime () / 1000) +
+    '-' +
+    path.basename (htmlFile);
+  const outputHtmlFile = path.join (outputFolder, outPutFile);
 
-  // Save the modified HTML content to the new file
   await fs.writeFileSync (outputHtmlFile, newHtmlContent, 'utf8');
-
   console.log (
     `New HTML file with contenteditable <span> elements created: ${outputHtmlFile}`
   );
+
+  if (!client.length == 0) {
+    client[client.length - 1].send (outPutFile);
+    setTimeout (() => {
+      client[client.length - 1].close ();
+    }, 200);
+  }
 }
 
-app.get ('/', async (req, res) => {
-  const inputHtmlFile = './htmlFIle/test_new_test.html';
-  const outputFolder = './htmlFIle/outPut';
-  const prompt = `completed`;
-  await addContentEditableToSpans (inputHtmlFile, outputFolder);
-  return res.send ('completed');
-});
+// app.get ('/', async (req, res) => {
+//   const inputHtmlFile = './htmlFIle/test_new_test.html';
+//   const outputFolder = './htmlFIle/outPut';
+//   const prompt = `completed`;
+//   await addContentEditableToSpans (inputHtmlFile, outputFolder);
+//   return res.send ('completed');
+// });
 
 // chokidar.watch('./htmlFIle/inputFile').on('add', (path, event) => {
 //   console.log(path);
 // });
 
-app.get ('/createFile', async (req, res) => {
+app.post ('/createFile', async (req, res) => {
+  console.log (req.body);
+  let config = {
+    method: 'post',
+    url: 'https://api.pdf.co/v1/pdf/convert/to/html',
+    headers: {
+      'x-api-key': API_KEY,
+      'Content-Type': 'application/json',
+    },
+    data: JSON.stringify ({url: req.body.url, async: true}),
+  };
+  websocket ();
+
   axios
     .request (config)
     .then (res => {
@@ -217,8 +244,21 @@ app.get ('/createFile', async (req, res) => {
     .catch (err => {
       return console.error ('Error: ', err);
     });
-  return res.send ('completed');
+
+  return res.status (200).json ({
+    success: true,
+    message: 'PDF is processing  please wait.',
+  });
 });
+
+function websocket () {
+  wss.on ('connection', function connection (ws) {
+    ws.on ('error', console.error);
+    client.length = 0;
+    client.push (ws);
+    // ws.send ('something');
+  });
+}
 
 function checkIfJobIsCompleted (jobId, resultFileUrl) {
   let queryPath = `/v1/job/check`;
@@ -246,8 +286,6 @@ function checkIfJobIsCompleted (jobId, resultFileUrl) {
 
       // Parse JSON response
       let data = JSON.parse (d);
-
-      console.log (data);
       console.log (
         `Checking Job #${jobId}, Status: ${data.status}, Time: ${new Date ().toLocaleString ()}`
       );
@@ -263,9 +301,12 @@ function checkIfJobIsCompleted (jobId, resultFileUrl) {
         https.get (resultFileUrl, response2 => {
           response2.pipe (file).on ('close', async () => {
             const inputHtmlFile = DestinationFile;
-            const outputFolder = './htmlFIle/outPut';
+            const outputFolder = './public/output';
             const prompt = `completed`;
-            await addContentEditableToSpans (inputHtmlFile, outputFolder);
+            const fileName = await addContentEditableToSpans (
+              inputHtmlFile,
+              outputFolder
+            );
             console.log (
               `Generated XML file saved as "${DestinationFile}" file.`
             );

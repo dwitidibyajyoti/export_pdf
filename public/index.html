@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM" crossorigin="anonymous">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz"
+        crossorigin="anonymous"></script>
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"
+        integrity="sha256-2Pmvv0kuTBOenSvLm6bvfBSSHrUJ+3A7x6P5Ebd07/g=" crossorigin="anonymous"></script>
+</head>
+
+<body>
+
+    <div class="d-flex justify-content-center">
+        <div class="input-group ml-4 mt-4 w-50">
+            <input type="text" class="form-control" placeholder="Valid PDF url" aria-label="Recipient's username"
+                aria-describedby="button-addon2" id="input_value">
+            <button class="btn btn-outline-secondary" type="button" id="submit-button">View</button>
+        </div>
+    </div>
+
+    <div class="alert alert-warning m-4 d-flex justify-content-lg-center align-items-center d-none" id="wetting_box" role="alert">
+        PDF is in progress &nbsp; &nbsp; &nbsp;
+        <div class="spinner-border ml-2 text-warning" role="status">
+            <span class="sr-only"></span>
+        </div>
+    </div>
+    <!-- <div class="alert alert-warning" role="alert">
+        A simple warning alert—check it out!
+      </div> -->
+
+
+    <iframe class="w-100 d-none" id="embaded_link" style="height: 86vh; margin-top:17px"
+        src="http://127.0.0.1:5500/htmlFIle/outPut/modified-1690178442-June2023.html" allowfullscreen></iframe>
+
+
+    <script>
+        JSON.stringify({
+            "url": "https://api.pdf.co/v1/pdf/convert/to/html",
+            "async": true
+        });
+        $(document).ready(function () {
+            $("#submit-button").click(function () {
+                const inputValue = $("#input_value").val();
+
+                if (inputValue == '') {
+                    return '';
+                }
+
+                $.ajax({
+                    url: "http://localhost:3000/createFile", // Replace with your server-side endpoint
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify({
+                        "url": inputValue,
+                        "async": true
+                    }),
+                    success: function (response) {
+                        $("#wetting_box").removeClass("d-none");
+                        console.log("Success:", response);
+                        websocket();
+                    },
+                    error: function (error) {
+                        console.error("Error:", error);
+                    }
+                });
+                function websocket(params) {
+                    const socket = new WebSocket('ws://localhost:3001');
+
+                    socket.addEventListener('open', () => {
+                        console.log('WebSocket connected');
+                    });
+
+                    socket.addEventListener('message', (message) => {
+                        $("#wetting_box").addClass("d-none");
+                        $("#embaded_link").removeClass("d-none");
+                        $("#embaded_link").attr("src", `http://localhost:3000/output/${message.data}`);
+
+                        console.log(message.data);
+                    });
+                    socket.addEventListener('error', (error) => {
+                        console.error('WebSocket error:', error);
+                    });
+
+                    // socket.addEventListener('close', () => {
+                    //     console.log('WebSocket disconnected');
+                    // });
+                }
+
+            });
+        });
+    </script>
+    </body>
+    
+    </html>

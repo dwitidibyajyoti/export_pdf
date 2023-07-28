@@ -13,10 +13,12 @@
   "dependencies": {
     "cheerio": "^1.0.0-rc.12",
     "chokidar": "^3.5.3",
+    "cors": "^2.8.5",
     "express": "^4.18.2",
     "openai": "^3.3.0",
     "openapi": "^1.0.1",
-    "pdf2json": "^3.0.4"
+    "pdf2json": "^3.0.4",
+    "ws": "^8.13.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
